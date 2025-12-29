@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kỷ yếu cùng Huy </title>
+    <title>Kỷ yếu cùng Huy - Deep Space Edition</title>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
@@ -26,7 +26,7 @@
             border-radius: 50px; color: #fff; font-weight: 600;
             backdrop-filter: blur(15px); transition: all 0.3s ease;
             box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            letter-spacing: 1px; min-width: 300px;
+            letter-spacing: 1px; min-width: 320px;
         }
 
         #video-container {
@@ -47,7 +47,7 @@
     </div>
 
     <div id="ui-layer">
-        <div id="status" class="status-badge">Đang quét không gian...</div>
+        <div id="status" class="status-badge">Đang khởi động camera...</div>
     </div>
 
     <div id="canvas-container"></div>
@@ -61,19 +61,19 @@
         let targetRotationX = 0, targetRotationY = 0;
         let currentRotationX = 0, currentRotationY = 0;
 
-        let smoothedPinchDist = 1;
-        let smoothedOpenFactor = 0;
+        // Countdown logic
+        let countdownValue = 3;
+        let countdownTimer = null;
         
-        const TEXT_STR = "Kỷ yếu cùng Huy";
+        const TEXT_STR_1 = "Kỷ yếu cùng Huy";
+        const TEXT_STR_INVITE = "vào 10h30 đến chụp cùng Huy nhé";
         const PARTICLE_COUNT = 10000; 
-        const PHOTO_COUNT = 6;
+        const PHOTO_COUNT = 8;
         const PHOTO_URLS = [
-            'https://picsum.photos/800/600?sig=101',
-            'https://picsum.photos/800/600?sig=102',
-            'https://picsum.photos/800/600?sig=103',
-            'https://picsum.photos/800/600?sig=104',
-            'https://picsum.photos/800/600?sig=105',
-            'https://picsum.photos/800/600?sig=106'
+            'https://picsum.photos/800/600?sig=101', 'https://picsum.photos/800/600?sig=102',
+            'https://picsum.photos/800/600?sig=103', 'https://picsum.photos/800/600?sig=104',
+            'https://picsum.photos/800/600?sig=105', 'https://picsum.photos/800/600?sig=106',
+            'https://picsum.photos/800/600?sig=107', 'https://picsum.photos/800/600?sig=108'
         ];
 
         init();
@@ -81,7 +81,9 @@
 
         function init() {
             scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+            scene.fog = new THREE.FogExp2(0x000000, 0.015);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 2000);
             camera.position.z = 8;
 
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -96,55 +98,63 @@
             animate();
         }
 
-        function createTextParticles() {
-            const geometry = new THREE.BufferGeometry();
-            const positions = new Float32Array(PARTICLE_COUNT * 3);
-            const targetPositions = new Float32Array(PARTICLE_COUNT * 3);
-            const heartPositions = new Float32Array(PARTICLE_COUNT * 3);
-            const colors = new Float32Array(PARTICLE_COUNT * 3);
-
+        function getPointsFromText(text, fontSize, width, height) {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
-            canvas.width = 1600; canvas.height = 400;
+            canvas.width = width; canvas.height = height;
             ctx.fillStyle = 'white';
-            ctx.font = 'bold 140px "Segoe UI", sans-serif';
+            ctx.font = `bold ${fontSize}px "Segoe UI", sans-serif`;
             ctx.textAlign = 'center';
-            ctx.fillText(TEXT_STR, 800, 220);
+            ctx.fillText(text, width/2, height/2 + fontSize/3);
 
-            const imgData = ctx.getImageData(0, 0, 1600, 400).data;
+            const imgData = ctx.getImageData(0, 0, width, height).data;
             const points = [];
-            for (let y = 0; y < 400; y += 2) {
-                for (let x = 0; x < 1600; x += 2) {
-                    if (imgData[(y * 1600 + x) * 4 + 3] > 120) {
-                        points.push({ x: (x - 800) * 0.012, y: (200 - y) * 0.012 });
+            const step = 2;
+            for (let y = 0; y < height; y += step) {
+                for (let x = 0; x < width; x += step) {
+                    if (imgData[(y * width + x) * 4 + 3] > 128) {
+                        points.push({ 
+                            x: (x - width/2) * (14/width), 
+                            y: (height/2 - y) * (14/width) 
+                        });
                     }
                 }
             }
+            return points;
+        }
 
-            const heartPoints = [];
+        function createTextParticles() {
+            const geometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(PARTICLE_COUNT * 3);
+            
+            const target1 = new Float32Array(PARTICLE_COUNT * 3);
+            const targetInvite = new Float32Array(PARTICLE_COUNT * 3);
+            const target3 = new Float32Array(PARTICLE_COUNT * 3);
+            const target2 = new Float32Array(PARTICLE_COUNT * 3);
+            const target1Num = new Float32Array(PARTICLE_COUNT * 3);
+            const colors = new Float32Array(PARTICLE_COUNT * 3);
+
+            const p1 = getPointsFromText(TEXT_STR_1, 140, 1600, 400);
+            const pInvite = getPointsFromText(TEXT_STR_INVITE, 80, 1600, 400);
+            const p3 = getPointsFromText("3", 300, 800, 800);
+            const p2Num = getPointsFromText("2", 300, 800, 800);
+            const p1Num = getPointsFromText("1", 300, 800, 800);
+
             for (let i = 0; i < PARTICLE_COUNT; i++) {
-                const t = Math.random() * Math.PI * 2;
-                const r = 0.22;
-                const hx = 16 * Math.pow(Math.sin(t), 3) * r;
-                const hy = (13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t)) * r;
-                heartPoints.push({ x: hx, y: hy });
-            }
+                const fill = (arr, pts) => {
+                    const pt = pts[Math.floor((i / PARTICLE_COUNT) * pts.length)];
+                    arr[i*3] = pt.x; arr[i*3+1] = pt.y; arr[i*3+2] = 0;
+                };
 
-            for (let i = 0; i < PARTICLE_COUNT; i++) {
-                const p = points[Math.floor((i / PARTICLE_COUNT) * points.length)];
-                const hp = heartPoints[i];
+                fill(target1, p1);
+                fill(targetInvite, pInvite);
+                fill(target3, p3);
+                fill(target2, p2Num);
+                fill(target1Num, p1Num);
 
-                positions[i*3] = (Math.random() - 0.5) * 30;
-                positions[i*3+1] = (Math.random() - 0.5) * 20;
-                positions[i*3+2] = (Math.random() - 0.5) * 20;
-
-                targetPositions[i*3] = p.x;
-                targetPositions[i*3+1] = p.y;
-                targetPositions[i*3+2] = 0;
-
-                heartPositions[i*3] = hp.x;
-                heartPositions[i*3+1] = hp.y;
-                heartPositions[i*3+2] = (Math.random() - 0.5) * 2;
+                positions[i*3] = (Math.random() - 0.5) * 50;
+                positions[i*3+1] = (Math.random() - 0.5) * 50;
+                positions[i*3+2] = (Math.random() - 0.5) * 50;
 
                 const color = new THREE.Color();
                 color.setHSL(0.55 + Math.random() * 0.1, 0.9, 0.6); 
@@ -152,12 +162,15 @@
             }
 
             geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-            geometry.setAttribute('target', new THREE.BufferAttribute(targetPositions, 3));
-            geometry.setAttribute('heart', new THREE.BufferAttribute(heartPositions, 3));
+            geometry.setAttribute('target1', new THREE.BufferAttribute(target1, 3));
+            geometry.setAttribute('targetInvite', new THREE.BufferAttribute(targetInvite, 3));
+            geometry.setAttribute('target3', new THREE.BufferAttribute(target3, 3));
+            geometry.setAttribute('target2', new THREE.BufferAttribute(target2, 3));
+            geometry.setAttribute('target1Num', new THREE.BufferAttribute(target1Num, 3));
             geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
             textParticles = new THREE.Points(geometry, new THREE.PointsMaterial({
-                size: 0.035, vertexColors: true, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending
+                size: 0.05, vertexColors: true, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending
             }));
             scene.add(textParticles);
         }
@@ -168,13 +181,12 @@
             for(let i=0; i<PHOTO_COUNT; i++) {
                 const mat = new THREE.MeshStandardMaterial({ 
                     map: loader.load(PHOTO_URLS[i]), 
-                    transparent: true, 
-                    opacity: 0, 
-                    side: THREE.DoubleSide
+                    transparent: true, opacity: 0, side: THREE.DoubleSide
                 });
                 const mesh = new THREE.Mesh(new THREE.PlaneGeometry(3.5, 2.6), mat);
                 mesh.userData.angle = (i / PHOTO_COUNT) * Math.PI * 2;
-                mesh.position.set(0, 0, -30);
+                mesh.userData.depthOffset = Math.random() * 10 - 5;
+                mesh.position.set(0, 0, -50);
                 photoGroup.add(mesh);
             }
             scene.add(photoGroup);
@@ -184,101 +196,62 @@
             requestAnimationFrame(animate);
             
             const posAttr = textParticles.geometry.attributes.position;
-            const targetAttr = textParticles.geometry.attributes.target;
-            const heartAttr = textParticles.geometry.attributes.heart;
+            const attrs = textParticles.geometry.attributes;
 
             currentRotationX += (targetRotationX - currentRotationX) * 0.08;
             currentRotationY += (targetRotationY - currentRotationY) * 0.08;
 
-            if (state === 'TEXT') {
-                textParticles.rotation.set(0, 0, 0);
-                photoGroup.rotation.set(0, 0, 0);
-                rotationAngle = 0;
-                focusedPhotoIndex = -1;
-                
-                for (let i = 0; i < PARTICLE_COUNT; i++) {
-                    posAttr.array[i*3] += (targetAttr.array[i*3] - posAttr.array[i*3]) * 0.1;
-                    posAttr.array[i*3+1] += (targetAttr.array[i*3+1] - posAttr.array[i*3+1]) * 0.1;
-                    posAttr.array[i*3+2] += (targetAttr.array[i*3+2] - posAttr.array[i*3+2]) * 0.1;
-                }
-            } 
-            else if (state === 'EXPLODE') {
-                rotationAngle += 0.006;
-                // Khi bung lụa, ảnh và hạt xoay theo tay
-                textParticles.rotation.set(currentRotationX, rotationAngle + currentRotationY, 0);
-                photoGroup.rotation.set(currentRotationX, rotationAngle + currentRotationY, 0);
+            let currentTarget = attrs.target1;
 
-                for (let i = 0; i < PARTICLE_COUNT; i++) {
-                    const tx = targetAttr.array[i*3] * 4 + Math.sin(rotationAngle + i) * 2;
-                    const ty = targetAttr.array[i*3+1] * 4 + Math.cos(rotationAngle + i) * 2;
-                    const tz = Math.sin(rotationAngle * 0.5 + i) * 5;
-                    posAttr.array[i*3] += (tx - posAttr.array[i*3]) * 0.04;
-                    posAttr.array[i*3+1] += (ty - posAttr.array[i*3+1]) * 0.04;
-                    posAttr.array[i*3+2] += (tz - posAttr.array[i*3+2]) * 0.04;
-                }
+            if (state === 'TEXT') currentTarget = attrs.target1;
+            else if (state === 'INVITE') currentTarget = attrs.targetInvite;
+            else if (state === 'COUNTDOWN') {
+                if (countdownValue === 3) currentTarget = attrs.target3;
+                else if (countdownValue === 2) currentTarget = attrs.target2;
+                else if (countdownValue === 1) currentTarget = attrs.target1Num;
             }
-            else if (state === 'HEART') {
-                rotationAngle += 0.01;
-                textParticles.rotation.set(0, Math.sin(rotationAngle * 0.5) * 0.3, 0);
-                
-                for (let i = 0; i < PARTICLE_COUNT; i++) {
-                    posAttr.array[i*3] += (heartAttr.array[i*3] * 2 - posAttr.array[i*3]) * 0.1;
-                    posAttr.array[i*3+1] += (heartAttr.array[i*3+1] * 2 - posAttr.array[i*3+1]) * 0.1;
-                    posAttr.array[i*3+2] += (heartAttr.array[i*3+2] - posAttr.array[i*3+2]) * 0.1;
-                }
-            }
-            else if (state === 'PHOTO') {
-                rotationAngle += 0.012;
-                textParticles.rotation.set(0, rotationAngle * 0.2, 0);
-                
-                // Khóa xoay của photoGroup khi đang phóng to để ảnh được thẳng
-                photoGroup.rotation.set(0, 0, 0);
 
+            if (state === 'EXPLODE' || state === 'PHOTO') {
+                rotationAngle += 0.005;
+                textParticles.rotation.set(0, rotationAngle, 0);
                 for (let i = 0; i < PARTICLE_COUNT; i++) {
-                    const r = 8 + Math.sin(i) * 3;
-                    const tx = Math.cos(i + rotationAngle) * r;
-                    const ty = Math.sin(i * 0.4 + rotationAngle) * (r * 0.5);
-                    const tz = -8;
+                    const radius = (state === 'PHOTO' ? 20 : 25);
+                    const phi = Math.acos(-1 + (2 * i) / PARTICLE_COUNT);
+                    const theta = Math.sqrt(PARTICLE_COUNT * Math.PI) * phi;
+                    const tx = radius * Math.sin(phi) * Math.cos(theta + rotationAngle);
+                    const ty = radius * Math.sin(phi) * Math.sin(theta + (state === 'PHOTO' ? rotationAngle * 0.2 : rotationAngle));
+                    const tz = radius * Math.cos(phi) - 15;
                     posAttr.array[i*3] += (tx - posAttr.array[i*3]) * 0.05;
                     posAttr.array[i*3+1] += (ty - posAttr.array[i*3+1]) * 0.05;
                     posAttr.array[i*3+2] += (tz - posAttr.array[i*3+2]) * 0.05;
+                }
+            } else {
+                textParticles.rotation.set(0, 0, 0);
+                const speed = (state === 'COUNTDOWN') ? 0.2 : 0.1;
+                for (let i = 0; i < PARTICLE_COUNT; i++) {
+                    posAttr.array[i*3] += (currentTarget.array[i*3] - posAttr.array[i*3]) * speed;
+                    posAttr.array[i*3+1] += (currentTarget.array[i*3+1] - posAttr.array[i*3+1]) * speed;
+                    posAttr.array[i*3+2] += (currentTarget.array[i*3+2] - posAttr.array[i*3+2]) * speed;
                 }
             }
 
             posAttr.needsUpdate = true;
 
             photoGroup.children.forEach((mesh, i) => {
-                if (state === 'PHOTO') {
-                    if (i === focusedPhotoIndex) {
-                        // Phóng to trực diện về phía Camera (Z dương)
-                        // Vị trí (0, 0, 4) giúp ảnh nằm ngay chính giữa màn hình
-                        mesh.position.lerp(new THREE.Vector3(0, 0, 4.2), 0.12); 
-                        mesh.scale.lerp(new THREE.Vector3(1.8, 1.35, 1), 0.12); 
-                        mesh.material.opacity += (1 - mesh.material.opacity) * 0.1;
-                        
-                        // Đặt góc xoay tuyệt đối về 0 để không bị nhìn chéo
-                        mesh.rotation.x = 0;
-                        mesh.rotation.y = 0;
-                        mesh.rotation.z = 0;
-                        mesh.renderOrder = 100;
-                    } else {
-                        // Các ảnh khác mờ đi và dạt ra xa
-                        const ox = Math.cos(mesh.userData.angle + rotationAngle) * 12;
-                        const oy = Math.sin(mesh.userData.angle + rotationAngle) * 8;
-                        mesh.position.lerp(new THREE.Vector3(ox, oy, -15), 0.08);
-                        mesh.scale.lerp(new THREE.Vector3(0.4, 0.3, 1), 0.08);
-                        mesh.material.opacity += (0.05 - mesh.material.opacity) * 0.1;
-                        mesh.lookAt(camera.position);
-                    }
+                if (state === 'PHOTO' && i === focusedPhotoIndex) {
+                    mesh.position.lerp(new THREE.Vector3(0, 0.2, 4.8), 0.15); 
+                    mesh.scale.lerp(new THREE.Vector3(1.8, 1.35, 1), 0.15);
+                    mesh.material.opacity += (1 - mesh.material.opacity) * 0.15;
+                    mesh.rotation.set(0, 0, 0);
                 } else if (state === 'EXPLODE') {
-                    const ox = Math.cos(mesh.userData.angle) * 7;
-                    const oy = Math.sin(mesh.userData.angle) * 5;
-                    mesh.position.lerp(new THREE.Vector3(ox, oy, 0), 0.05);
-                    mesh.scale.lerp(new THREE.Vector3(1.1, 0.8, 1), 0.05);
-                    mesh.material.opacity += (0.85 - mesh.material.opacity) * 0.05;
+                    const orbitRadius = 25 + mesh.userData.depthOffset;
+                    const ox = Math.cos(mesh.userData.angle + rotationAngle) * orbitRadius;
+                    const oz = Math.sin(mesh.userData.angle + rotationAngle) * orbitRadius;
+                    mesh.position.lerp(new THREE.Vector3(ox, Math.sin(i)*5, oz - 15), 0.05);
+                    mesh.material.opacity += (0.8 - mesh.material.opacity) * 0.05;
                     mesh.lookAt(camera.position);
                 } else {
-                    mesh.position.lerp(new THREE.Vector3(0, 0, -30), 0.1);
+                    mesh.position.lerp(new THREE.Vector3(0, 0, -60), 0.1);
                     mesh.material.opacity += (0 - mesh.material.opacity) * 0.1;
                 }
             });
@@ -286,83 +259,96 @@
             renderer.render(scene, camera);
         }
 
+        function resetToDefault() {
+            if (countdownTimer) {
+                clearInterval(countdownTimer);
+                countdownTimer = null;
+            }
+            state = 'TEXT';
+            document.getElementById('status').innerText = "Kỷ yếu cùng Huy";
+        }
+
+        function startCountdown() {
+            if (state === 'COUNTDOWN' || state === 'INVITE') return;
+            state = 'COUNTDOWN';
+            countdownValue = 3;
+            if (countdownTimer) clearInterval(countdownTimer);
+            
+            countdownTimer = setInterval(() => {
+                countdownValue--;
+                if (countdownValue <= 0) {
+                    clearInterval(countdownTimer);
+                    countdownTimer = null;
+                    state = 'INVITE';
+                    document.getElementById('status').innerText = "📸 CHỤP THÔI HUY ƠI!";
+                }
+            }, 1000);
+        }
+
         async function setupMediaPipe() {
             const video = document.getElementById('input_video');
             const statusDiv = document.getElementById('status');
             
-            try {
-                const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+            const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+            hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
 
-                hands.setOptions({ 
-                    maxNumHands: 2, 
-                    modelComplexity: 1, 
-                    minDetectionConfidence: 0.6, 
-                    minTrackingConfidence: 0.6 
-                });
+            hands.onResults((results) => {
+                if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                    const lm = results.multiHandLandmarks[0];
+                    
+                    const isIndexOpen = lm[8].y < lm[6].y;
+                    const isMiddleOpen = lm[12].y < lm[10].y;
+                    const isRingOpen = lm[16].y < lm[14].y;
+                    const isPinkyOpen = lm[20].y < lm[18].y;
+                    const isThumbOpen = Math.hypot(lm[4].x - lm[9].x, lm[4].y - lm[9].y) > 0.12;
 
-                hands.onResults((results) => {
-                    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-                        const hCenter = results.multiHandLandmarks[0][9];
-                        // Chỉ cập nhật targetRotation khi không ở chế độ PHOTO để tránh rung lắc
-                        if (state !== 'PHOTO') {
-                            targetRotationY = (hCenter.x - 0.5) * -2;
-                            targetRotationX = (hCenter.y - 0.5) * -1.5;
-                        }
+                    // Đếm số ngón tay mở (không tính ngón cái cho chính xác)
+                    let fingerCount = 0;
+                    if (isIndexOpen) fingerCount++;
+                    if (isMiddleOpen) fingerCount++;
+                    if (isRingOpen) fingerCount++;
+                    if (isPinkyOpen) fingerCount++;
 
-                        if (results.multiHandLandmarks.length === 2) {
-                            const h1 = results.multiHandLandmarks[0];
-                            const h2 = results.multiHandLandmarks[1];
-                            const dThumb = Math.hypot(h1[4].x - h2[4].x, h1[4].y - h2[4].y);
-                            const dIndex = Math.hypot(h1[8].x - h2[8].x, h1[8].y - h2[8].y);
-                            
-                            if (dThumb < 0.15 && dIndex < 0.15) {
-                                state = 'HEART';
-                                statusDiv.innerText = "❤️ KỶ NIỆM NGỌT NGÀO ❤️";
-                                statusDiv.style.color = "#ff4d88";
-                                return;
-                            }
-                        }
-
-                        const lm = results.multiHandLandmarks[0];
-                        const rawPinch = Math.hypot(lm[4].x - lm[8].x, lm[4].y - lm[8].y);
-                        smoothedPinchDist = smoothedPinchDist * 0.6 + rawPinch * 0.4;
-
-                        let rawOpen = 0; 
-                        [8,12,16,20].forEach(id => rawOpen += Math.hypot(lm[id].x-lm[0].x, lm[id].y-lm[0].y));
-                        const currentOpenFactor = rawOpen / 4;
-                        smoothedOpenFactor = smoothedOpenFactor * 0.6 + currentOpenFactor * 0.4;
-
-                        if (smoothedOpenFactor < 0.24) { 
-                            state = 'TEXT';
-                            statusDiv.innerText = "✊ Nắm tay: Chế độ tĩnh";
-                            statusDiv.style.color = "#fff";
-                        } else if (smoothedPinchDist < 0.055) { 
-                            if (state !== 'PHOTO') focusedPhotoIndex = Math.floor(Math.random() * PHOTO_COUNT);
-                            state = 'PHOTO';
-                            statusDiv.innerText = "👌 Chạm ngón: Phóng to trực diện";
-                            statusDiv.style.color = "#00e5ff";
-                        } else {
-                            state = 'EXPLODE';
-                            statusDiv.innerText = "🖐 Xòe tay: Điều hướng 360°";
-                            statusDiv.style.color = "#00ffaa";
-                        }
-                    } else {
-                        state = 'TEXT';
-                        statusDiv.innerText = "Hãy giơ tay trước camera!";
-                        statusDiv.style.color = "#fff";
+                    // 1. CHỨC NĂNG 3 NGÓN (CHỈ TRỎ, GIỮA, ÁP ÚT MỞ) -> ĐẾM NGƯỢC
+                    if (isIndexOpen && isMiddleOpen && isRingOpen && !isPinkyOpen) {
+                        startCountdown();
+                        if (state === 'COUNTDOWN') statusDiv.innerText = `🔥 Đang đếm ngược: ${countdownValue}...`;
+                        return;
                     }
-                });
 
-                const cam = new Camera(video, {
-                    onFrame: async () => { await hands.send({image: video}); },
-                    width: 640, height: 480 
-                });
-                
-                await cam.start();
-            } catch (err) {
-                statusDiv.innerText = "Lỗi: Không thể mở Camera!";
-                statusDiv.style.color = "#ff4444";
-            }
+                    // 2. CHỨC NĂNG CHỤM 2 NGÓN (Cái + Trỏ chụm, các ngón khác khép) -> PHÓNG TO ẢNH
+                    const pinchDist = Math.hypot(lm[4].x - lm[8].x, lm[4].y - lm[8].y);
+                    if (pinchDist < 0.045 && !isMiddleOpen && !isRingOpen) {
+                        if (state !== 'PHOTO') focusedPhotoIndex = Math.floor(Math.random() * PHOTO_COUNT);
+                        state = 'PHOTO';
+                        statusDiv.innerText = "👌 Đang xem ảnh chính diện";
+                        return;
+                    }
+
+                    // 3. XÒE CẢ BÀN TAY (4 hoặc 5 ngón mở) -> MỞ KHÔNG GIAN 360
+                    if (fingerCount >= 4 || (fingerCount >= 3 && isPinkyOpen)) {
+                        state = 'EXPLODE';
+                        statusDiv.innerText = "🖐 Không gian 360 độ";
+                        if (countdownTimer) resetToDefault();
+                        return;
+                    }
+
+                    // 4. NẮM TAY -> HIỆN TÊN
+                    if (fingerCount <= 1) {
+                        state = 'TEXT';
+                        statusDiv.innerText = "✊ Nắm tay: Hiện tên";
+                        if (countdownTimer) resetToDefault();
+                        return;
+                    }
+
+                } else {
+                    resetToDefault();
+                    statusDiv.innerText = "Giơ tay lên nào!";
+                }
+            });
+
+            const cam = new Camera(video, { onFrame: async () => await hands.send({image: video}), width: 640, height: 480 });
+            cam.start();
         }
 
         window.addEventListener('resize', () => {
